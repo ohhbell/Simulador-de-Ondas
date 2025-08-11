@@ -212,7 +212,7 @@
         <button class="nav-link active" id="pills-interference-tab" data-bs-toggle="pill" data-bs-target="#pills-interference" type="button" role="tab" aria-controls="pills-interference" aria-selected="true">Interferência</button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="pills-diffraction-tab" data-bs-toggle="pill" data-bs-target="#pills-diffraction" type="button" role="tab" aria-controls="pills-diffraction" aria-selected="false">Difração</button>
+        <button class="nav-link" id="pills-diffraction-tab" data-bs-toggle="pill" data-bs-target="#pills-diffraction" type="button" role="tab" aria-controls="pills-diffraction" aria-selected="false">Difração e Equalização</button>
       </li>
     </ul>
 
@@ -331,23 +331,33 @@
         <div class="row g-4">
           <div class="col-lg-5">
             <div class="wave-card p-4 mb-4">
-              <h5 class="card-header border-0 pb-3"><i class="fas fa-sliders-h me-2"></i>Controles de Difração</h5>
+              <h5 class="card-header border-0 pb-3"><i class="fas fa-sliders-h me-2"></i>Controles de Difração e EQ</h5>
               <div class="d-flex flex-wrap gap-2 mb-4">
                 <button id="toggleDiffractionBtn" class="btn btn-primary btn-sm">
-                  <i class="fas fa-power-off me-1"></i> Ligar Simulação
+                  <i class="fas fa-microphone me-1"></i> Ligar Microfone
                 </button>
               </div>
+              <div class="alert alert-info" role="alert">
+                <i class="fas fa-info-circle me-2"></i>Use o microfone para simular o som. Os filtros abaixo mudam o som em tempo real.
+              </div>
               <div class="mb-3">
-                <label for="diffractionFreq" class="form-label control-label">Frequência da Onda: <span id="diffractionFreqValue" class="value-display">300</span> Hz</label>
-                <input type="range" class="form-range" id="diffractionFreq" min="100" max="800" value="300" step="1">
+                <label for="lowPassFreq" class="form-label control-label">Filtro Passa-Baixa: <span id="lowPassFreqValue" class="value-display">20000</span> Hz</label>
+                <input type="range" class="form-range" id="lowPassFreq" min="100" max="20000" value="20000" step="10">
+                <small class="form-text text-muted">Aumenta ou diminui o efeito "abafado" do som.</small>
+              </div>
+              <div class="mb-3">
+                <label for="highPassFreq" class="form-label control-label">Filtro Passa-Alta: <span id="highPassFreqValue" class="value-display">0</span> Hz</label>
+                <input type="range" class="form-range" id="highPassFreq" min="0" max="1000" value="0" step="10">
+                <small class="form-text text-muted">Aumenta ou diminui a parte grave do som.</small>
               </div>
               <div class="mb-3">
                 <label for="slitWidth" class="form-label control-label">Largura da Fenda: <span id="slitWidthValue" class="value-display">20</span> cm</label>
                 <input type="range" class="form-range" id="slitWidth" min="10" max="60" value="20" step="1">
               </div>
               <div class="mb-3">
-                <label for="listenerPosition" class="form-label control-label">Posição do Ouvinte: <span id="listenerPositionValue" class="value-display">Na Frente</span></label>
+                <label for="listenerPosition" class="form-label control-label">Simulação de Parede: <span id="listenerPositionValue" class="value-display">Desativado</span></label>
                 <input type="range" class="form-range" id="listenerPosition" min="0" max="1" value="0" step="1">
+                <small class="form-text text-muted">Liga o filtro passa-baixa para simular o som abafado de uma parede.</small>
               </div>
             </div>
           </div>
@@ -750,22 +760,26 @@
     }
 
     // ----------------------------------------------
-    // Lógica para a simulação de Difração
+    // Lógica para a simulação de Difração e EQ
     // ----------------------------------------------
     const diffractionCanvas = document.getElementById('diffractionCanvas');
     const diffractionCtx = diffractionCanvas.getContext('2d');
     const toggleDiffractionBtn = document.getElementById('toggleDiffractionBtn');
-    const diffractionFreqSlider = document.getElementById('diffractionFreq');
-    const diffractionFreqValue = document.getElementById('diffractionFreqValue');
+    const lowPassFreqSlider = document.getElementById('lowPassFreq');
+    const lowPassFreqValue = document.getElementById('lowPassFreqValue');
+    const highPassFreqSlider = document.getElementById('highPassFreq');
+    const highPassFreqValue = document.getElementById('highPassFreqValue');
     const slitWidthSlider = document.getElementById('slitWidth');
     const slitWidthValue = document.getElementById('slitWidthValue');
     const listenerPositionSlider = document.getElementById('listenerPosition');
     const listenerPositionValue = document.getElementById('listenerPositionValue');
 
     let diffractionSoundOn = false;
-    let diffractionOscillator = null;
-    let lowPassFilter = null;
     let audioDiffractionCtx = null;
+    let microphoneStream = null;
+    let microphoneSource = null;
+    let lowPassFilter = null;
+    let highPassFilter = null;
     let diffractionAnimationFrame;
 
     function setupDiffractionCanvas() {
@@ -780,7 +794,8 @@
 
     function setupDiffractionListeners() {
         toggleDiffractionBtn.addEventListener('click', toggleDiffractionSound);
-        diffractionFreqSlider.addEventListener('input', updateDiffractionParams);
+        lowPassFreqSlider.addEventListener('input', updateDiffractionParams);
+        highPassFreqSlider.addEventListener('input', updateDiffractionParams);
         slitWidthSlider.addEventListener('input', updateDiffractionParams);
         listenerPositionSlider.addEventListener('input', updateDiffractionParams);
         window.addEventListener('resize', setupDiffractionCanvas);
@@ -788,79 +803,95 @@
     }
     
     function updateDiffractionParams() {
-        diffractionFreqValue.textContent = diffractionFreqSlider.value;
+        lowPassFreqValue.textContent = lowPassFreqSlider.value;
+        highPassFreqValue.textContent = highPassFreqSlider.value;
         slitWidthValue.textContent = slitWidthSlider.value;
-        listenerPositionValue.textContent = listenerPositionSlider.value == 0 ? 'Na Frente' : 'Atrás';
+        
+        const listenerPos = parseInt(listenerPositionSlider.value);
+        if(listenerPos === 1) {
+          listenerPositionValue.textContent = 'Ativado';
+          lowPassFreqSlider.value = 500;
+        } else {
+          listenerPositionValue.textContent = 'Desativado';
+          lowPassFreqSlider.value = 20000;
+        }
 
         if(lowPassFilter) {
             updateDiffractionAudio();
         }
-        // Redesenha a animação imediatamente
         cancelAnimationFrame(diffractionAnimationFrame);
         drawDiffraction();
     }
 
     async function toggleDiffractionSound() {
-        if (diffractionSoundOn) {
-            stopDiffractionSound();
-            toggleDiffractionBtn.innerHTML = '<i class="fas fa-power-off me-1"></i> Ligar Simulação';
-            toggleDiffractionBtn.classList.remove('btn-success');
-            toggleDiffractionBtn.classList.add('btn-primary');
-            diffractionSoundOn = false;
-        } else {
-            startDiffractionSound();
-            toggleDiffractionBtn.innerHTML = '<i class="fas fa-volume-up me-1"></i> Desligar Simulação';
-            toggleDiffractionBtn.classList.remove('btn-primary');
-            toggleDiffractionBtn.classList.add('btn-success');
-            diffractionSoundOn = true;
+      if (diffractionSoundOn) {
+        stopDiffractionSound();
+        toggleDiffractionBtn.innerHTML = '<i class="fas fa-microphone me-1"></i> Ligar Microfone';
+        toggleDiffractionBtn.classList.remove('btn-success');
+        toggleDiffractionBtn.classList.add('btn-primary');
+        diffractionSoundOn = false;
+      } else {
+        try {
+          await startDiffractionSound();
+          toggleDiffractionBtn.innerHTML = '<i class="fas fa-volume-up me-1"></i> Desligar Microfone';
+          toggleDiffractionBtn.classList.remove('btn-primary');
+          toggleDiffractionBtn.classList.add('btn-success');
+          diffractionSoundOn = true;
+        } catch (e) {
+          console.error("Erro ao iniciar o áudio do microfone:", e);
+          alert("Não foi possível acessar o microfone. Verifique se as permissões foram concedidas.");
         }
+      }
     }
 
-    function startDiffractionSound() {
-        if (audioDiffractionCtx) return;
-        audioDiffractionCtx = new (window.AudioContext || window.webkitAudioContext)();
+    async function startDiffractionSound() {
+      if (audioDiffractionCtx) return;
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      microphoneStream = stream;
+      audioDiffractionCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        // Criar o oscilador (fonte sonora)
-        diffractionOscillator = audioDiffractionCtx.createOscillator();
-        diffractionOscillator.type = 'sine';
-        diffractionOscillator.start();
+      microphoneSource = audioDiffractionCtx.createMediaStreamSource(stream);
 
-        // Criar o filtro passa-baixa
-        lowPassFilter = audioDiffractionCtx.createBiquadFilter();
-        lowPassFilter.type = 'lowpass';
+      lowPassFilter = audioDiffractionCtx.createBiquadFilter();
+      lowPassFilter.type = 'lowpass';
+      lowPassFilter.Q.value = 1;
         
-        // Conectar a cadeia de áudio: Oscillator -> Filter -> Destination
-        diffractionOscillator.connect(lowPassFilter);
-        lowPassFilter.connect(audioDiffractionCtx.destination);
-        
-        updateDiffractionAudio();
+      highPassFilter = audioDiffractionCtx.createBiquadFilter();
+      highPassFilter.type = 'highpass';
+      highPassFilter.Q.value = 1;
+
+      // Conectar a cadeia de áudio: Microfone -> Filtro Passa-Baixa -> Filtro Passa-Alta -> Saída
+      microphoneSource.connect(lowPassFilter);
+      lowPassFilter.connect(highPassFilter);
+      highPassFilter.connect(audioDiffractionCtx.destination);
+      
+      updateDiffractionAudio();
     }
 
     function updateDiffractionAudio() {
-        if(!diffractionOscillator) return;
+        if(!lowPassFilter || !highPassFilter) return;
         
-        const freq = parseFloat(diffractionFreqSlider.value);
-        const listenerPos = parseInt(listenerPositionSlider.value);
+        const lowPassFreq = parseFloat(lowPassFreqSlider.value);
+        const highPassFreq = parseFloat(highPassFreqSlider.value);
         
-        diffractionOscillator.frequency.setValueAtTime(freq, audioDiffractionCtx.currentTime);
+        lowPassFilter.frequency.setValueAtTime(lowPassFreq, audioDiffractionCtx.currentTime);
+        highPassFilter.frequency.setValueAtTime(highPassFreq, audioDiffractionCtx.currentTime);
 
-        if (listenerPos === 1) { // Posição "Atrás da Parede"
-            const cutoffFreq = freq * 1.5;
-            lowPassFilter.frequency.setValueAtTime(cutoffFreq, audioDiffractionCtx.currentTime);
-        } else { // Posição "Na Frente"
-            // Desativa o filtro (frequência de corte máxima)
-            lowPassFilter.frequency.setValueAtTime(audioDiffractionCtx.sampleRate / 2, audioDiffractionCtx.currentTime);
-        }
+        lowPassFreqValue.textContent = lowPassFreq;
+        highPassFreqValue.textContent = highPassFreq;
     }
 
     function stopDiffractionSound() {
-        if (!audioDiffractionCtx) return;
-        diffractionOscillator.stop();
-        audioDiffractionCtx.close().then(() => {
-            audioDiffractionCtx = null;
-            diffractionOscillator = null;
-            lowPassFilter = null;
-        });
+      if (!audioDiffractionCtx) return;
+      microphoneStream.getTracks().forEach(track => track.stop());
+      audioDiffractionCtx.close().then(() => {
+          audioDiffractionCtx = null;
+          microphoneStream = null;
+          microphoneSource = null;
+          lowPassFilter = null;
+          highPassFilter = null;
+      });
     }
 
     function drawDiffraction(time) {
@@ -872,8 +903,9 @@
         const sourceY = height / 2;
         const wallX = width * 0.45;
         const slitWidth = parseInt(slitWidthSlider.value);
-        const freq = parseFloat(diffractionFreqSlider.value);
-        const wavelength = 343 / freq * 1000 * 0.1; 
+        
+        const freqForWave = parseFloat(lowPassFreqSlider.value);
+        const wavelength = 343 / freqForWave * 1000 * 0.1;
         const wallThickness = 20;
 
         // Desenhar a fonte sonora
@@ -899,7 +931,7 @@
         diffractionCtx.lineWidth = 2;
 
         if (diffractionSoundOn) {
-            let offset = (time / 10) % wavelength;
+            let offset = (time / 10) % (wavelength > 0 ? wavelength : 1);
             for (let r = offset; r < width - sourceX; r += wavelength) {
                 if (r > 0) {
                     diffractionCtx.beginPath();
@@ -923,7 +955,6 @@
         diffractionAnimationFrame = requestAnimationFrame(drawDiffraction);
     }
     
-    // Assegura que o script só inicie após o DOM carregar
     document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
