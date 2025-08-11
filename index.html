@@ -154,7 +154,7 @@
       background-color: #f8f9fa;
       border-radius: 8px;
     }
-
+    
     .diffraction-canvas-container .wall {
       position: absolute;
       top: 0;
@@ -162,7 +162,7 @@
       background: #ccc;
       box-shadow: 2px 0 5px rgba(0,0,0,0.2);
     }
-
+    
     .diffraction-canvas-container .slit {
       position: absolute;
       background: #f8f9fa;
@@ -766,6 +766,7 @@
     let diffractionOscillator = null;
     let lowPassFilter = null;
     let audioDiffractionCtx = null;
+    let diffractionAnimationFrame;
 
     function setupDiffractionCanvas() {
         const dpr = window.devicePixelRatio || 1;
@@ -794,6 +795,8 @@
         if(lowPassFilter) {
             updateDiffractionAudio();
         }
+        // Redesenha a animação imediatamente
+        cancelAnimationFrame(diffractionAnimationFrame);
         drawDiffraction();
     }
 
@@ -820,17 +823,16 @@
         // Criar o oscilador (fonte sonora)
         diffractionOscillator = audioDiffractionCtx.createOscillator();
         diffractionOscillator.type = 'sine';
+        diffractionOscillator.start();
 
         // Criar o filtro passa-baixa
         lowPassFilter = audioDiffractionCtx.createBiquadFilter();
         lowPassFilter.type = 'lowpass';
-        lowPassFilter.gain.value = 0; // Ganho 0 é o padrão para o filtro lowpass
-
+        
         // Conectar a cadeia de áudio: Oscillator -> Filter -> Destination
         diffractionOscillator.connect(lowPassFilter);
         lowPassFilter.connect(audioDiffractionCtx.destination);
         
-        diffractionOscillator.start();
         updateDiffractionAudio();
     }
 
@@ -843,8 +845,7 @@
         diffractionOscillator.frequency.setValueAtTime(freq, audioDiffractionCtx.currentTime);
 
         if (listenerPos === 1) { // Posição "Atrás da Parede"
-            const maxFreq = audioDiffractionCtx.sampleRate / 2;
-            const cutoffFreq = freq * 1.5; // O corte depende da frequência da onda
+            const cutoffFreq = freq * 1.5;
             lowPassFilter.frequency.setValueAtTime(cutoffFreq, audioDiffractionCtx.currentTime);
         } else { // Posição "Na Frente"
             // Desativa o filtro (frequência de corte máxima)
@@ -862,7 +863,7 @@
         });
     }
 
-    function drawDiffraction() {
+    function drawDiffraction(time) {
         const width = diffractionCanvas.width / (window.devicePixelRatio || 1);
         const height = diffractionCanvas.height / (window.devicePixelRatio || 1);
         diffractionCtx.clearRect(0, 0, width, height);
@@ -872,56 +873,58 @@
         const wallX = width * 0.45;
         const slitWidth = parseInt(slitWidthSlider.value);
         const freq = parseFloat(diffractionFreqSlider.value);
-        const wavelength = 343 / freq * 1000 * 0.1; // Conversão aproximada para pixels
+        const wavelength = 343 / freq * 1000 * 0.1; 
         const wallThickness = 20;
 
         // Desenhar a fonte sonora
-        diffractionCtx.fillStyle = var(--primary);
-        diffractionCtx.beginPath();
-        diffractionCtx.arc(sourceX, sourceY, 10, 0, 2 * Math.PI);
-        diffractionCtx.fill();
+        const sourceBox = document.querySelector('.source-box');
+        sourceBox.style.background = 'var(--primary)';
+        const listenerBox = document.querySelector('.listener-box');
+        listenerBox.style.background = 'var(--accent)';
 
-        // Desenhar o ouvinte
-        diffractionCtx.fillStyle = var(--accent);
-        diffractionCtx.beginPath();
-        diffractionCtx.arc(width - 30, height / 2, 10, 0, 2 * Math.PI);
-        diffractionCtx.fill();
-
-        // Desenhar a parede e a fenda
-        diffractionCtx.fillStyle = '#ccc';
-        diffractionCtx.fillRect(wallX, 0, wallThickness, sourceY - slitWidth / 2);
-        diffractionCtx.fillRect(wallX, sourceY + slitWidth / 2, wallThickness, height);
-
-        // Animar as ondas
-        const numWaves = 10;
-        const time = (diffractionSoundOn ? Date.now() / 100 : 0) % 1000;
+        // Desenhar a parede e a fenda (agora controlada por JS)
+        const wallDiv = document.getElementById('diffractionWall');
+        const slitDiv = document.getElementById('diffractionSlit');
         
-        for (let i = 0; i < numWaves; i++) {
-            const radius = (time + i * 50) % 500;
-            const opacity = 1 - (radius / 500);
+        wallDiv.style.top = '0';
+        wallDiv.style.height = '100%';
+        wallDiv.style.left = `${wallX}px`;
+        wallDiv.style.width = `${wallThickness}px`;
+        
+        slitDiv.style.height = `${slitWidth}px`;
+        slitDiv.style.top = `calc(50% - ${slitWidth / 2}px)`;
+        slitDiv.style.left = `${wallX + wallThickness/2}px`;
+        
+        diffractionCtx.strokeStyle = `var(--primary)`;
+        diffractionCtx.lineWidth = 2;
 
-            if (opacity > 0) {
-                diffractionCtx.strokeStyle = `rgba(67, 97, 238, ${opacity})`;
-                diffractionCtx.lineWidth = 2;
-                diffractionCtx.beginPath();
-
-                // Difração após a fenda
-                if (radius + sourceX > wallX) {
-                    const diffractedRadius = Math.max(radius - (wallX - sourceX), 0);
-                    const diffractedAngle = Math.asin(wavelength / slitWidth);
-
-                    // Desenhar a onda difratada (semicírculo)
-                    diffractionCtx.arc(wallX + wallThickness / 2, sourceY, diffractedRadius, -Math.PI / 2 - diffractedAngle, Math.PI / 2 + diffractedAngle);
-                } else {
-                    // Desenhar a onda antes da fenda (círculo normal)
-                    diffractionCtx.arc(sourceX, sourceY, radius, 0, 2 * Math.PI);
+        if (diffractionSoundOn) {
+            let offset = (time / 10) % wavelength;
+            for (let r = offset; r < width - sourceX; r += wavelength) {
+                if (r > 0) {
+                    diffractionCtx.beginPath();
+                    
+                    // Onda antes da fenda
+                    if (sourceX + r < wallX) {
+                        diffractionCtx.arc(sourceX, sourceY, r, 0, 2 * Math.PI);
+                    } 
+                    // Onda difratada
+                    else {
+                        const newRadius = r - (wallX - sourceX);
+                        const diffractedAngle = Math.asin(wavelength / slitWidth);
+                        diffractionCtx.arc(wallX + wallThickness / 2, sourceY, newRadius, -Math.PI/2 - diffractedAngle * 2, Math.PI/2 + diffractedAngle * 2);
+                    }
+                    
+                    diffractionCtx.stroke();
                 }
-                diffractionCtx.stroke();
             }
         }
+        
+        diffractionAnimationFrame = requestAnimationFrame(drawDiffraction);
     }
-
-    init();
+    
+    // Assegura que o script só inicie após o DOM carregar
+    document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>
