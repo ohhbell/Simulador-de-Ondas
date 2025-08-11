@@ -430,10 +430,8 @@
       
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       
-      // Adiciona o módulo do AudioWorklet. É aqui que o arquivo 'phase-processor.js' é carregado.
       await audioCtx.audioWorklet.addModule('phase-processor.js');
 
-      // Cria a instância do AudioWorkletNode
       audioWorkletNode = new AudioWorkletNode(audioCtx, 'phase-processor');
       audioWorkletNode.connect(audioCtx.destination);
       
@@ -469,7 +467,6 @@
         phase: parseFloat(wave2PhaseSlider.value) * Math.PI / 180,
       };
 
-      // Envia os parâmetros para o AudioWorklet via postMessage
       audioWorkletNode.port.postMessage({
         wave1: wave1Params,
         wave2: wave2Params

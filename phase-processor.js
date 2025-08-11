@@ -9,7 +9,8 @@ class PhaseProcessor extends AudioWorkletProcessor {
         amp: 0.7, 
         phase: 0, 
         currentPhase: 0, 
-        targetPhase: 0
+        targetPhase: 0,
+        phaseRamp: 0
     };
     // Parâmetros da onda 2
     this.wave2 = { 
@@ -19,29 +20,43 @@ class PhaseProcessor extends AudioWorkletProcessor {
         amp: 0.7, 
         phase: 0, 
         currentPhase: 0, 
-        targetPhase: 0
+        targetPhase: 0,
+        phaseRamp: 0
     };
 
     // Tempo de rampa para suavizar mudanças de parâmetro (em segundos)
     this.rampTime = 0.05; 
 
     this.port.onmessage = (event) => {
-      // Atualiza os parâmetros, mas a fase agora é um 'alvo'
-      const newWave1Params = { ...this.wave1, ...event.data.wave1 };
-      const newWave2Params = { ...this.wave2, ...event.data.wave2 };
-
-      // Garante que a fase não dê um salto se a frequência for alterada
-      if (newWave1Params.freq !== this.wave1.freq) {
-          newWave1Params.currentPhase = 0;
-      }
-      if (newWave2Params.freq !== this.wave2.freq) {
-          newWave2Params.currentPhase = 0;
-      }
+      // Recebe os novos parâmetros
+      const newWave1Params = event.data.wave1;
+      const newWave2Params = event.data.wave2;
       
-      this.wave1 = newWave1Params;
-      this.wave2 = newWave2Params;
+      // Calcula o valor da rampa para a fase
+      const rampSamples = Math.ceil(this.rampTime * sampleRate);
+      
+      const wave1PhaseDifference = newWave1Params.phase - this.wave1.phase;
+      this.wave1.phaseRamp = wave1PhaseDifference / rampSamples;
       this.wave1.targetPhase = newWave1Params.phase;
+
+      const wave2PhaseDifference = newWave2Params.phase - this.wave2.phase;
+      this.wave2.phaseRamp = wave2PhaseDifference / rampSamples;
       this.wave2.targetPhase = newWave2Params.phase;
+      
+      // Atualiza os outros parâmetros instantaneamente
+      this.wave1.active = newWave1Params.active;
+      this.wave1.type = newWave1Params.type;
+      this.wave1.freq = newWave1Params.freq;
+      this.wave1.amp = newWave1Params.amp;
+      
+      this.wave2.active = newWave2Params.active;
+      this.wave2.type = newWave2Params.type;
+      this.wave2.freq = newWave2Params.freq;
+      this.wave2.amp = newWave2Params.amp;
+
+      // Resetar a fase se a frequência mudar para evitar saltos.
+      if (newWave1Params.freq !== this.wave1.freq) this.wave1.currentPhase = 0;
+      if (newWave2Params.freq !== this.wave2.freq) this.wave2.currentPhase = 0;
     };
   }
 
@@ -68,24 +83,20 @@ class PhaseProcessor extends AudioWorkletProcessor {
         return true;
     }
 
-    const rampSamples = Math.ceil(this.rampTime * sampleRate);
-    const wave1RampValue = (this.wave1.targetPhase - this.wave1.phase) / rampSamples;
-    const wave2RampValue = (this.wave2.targetPhase - this.wave2.phase) / rampSamples;
-
     const wave1PhaseIncrement = (2 * Math.PI * this.wave1.freq) / sampleRate;
     const wave2PhaseIncrement = (2 * Math.PI * this.wave2.freq) / sampleRate;
 
     for (let i = 0; i < outputChannel.length; i++) {
       // Suaviza a fase da onda 1
-      if (Math.abs(this.wave1.phase - this.wave1.targetPhase) > Math.abs(wave1RampValue)) {
-          this.wave1.phase += wave1RampValue;
+      if (Math.abs(this.wave1.phase - this.wave1.targetPhase) > Math.abs(this.wave1.phaseRamp)) {
+          this.wave1.phase += this.wave1.phaseRamp;
       } else {
           this.wave1.phase = this.wave1.targetPhase;
       }
-
+      
       // Suaviza a fase da onda 2
-      if (Math.abs(this.wave2.phase - this.wave2.targetPhase) > Math.abs(wave2RampValue)) {
-          this.wave2.phase += wave2RampValue;
+      if (Math.abs(this.wave2.phase - this.wave2.targetPhase) > Math.abs(this.wave2.phaseRamp)) {
+          this.wave2.phase += this.wave2.phaseRamp;
       } else {
           this.wave2.phase = this.wave2.targetPhase;
       }
