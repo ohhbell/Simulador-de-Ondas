@@ -212,7 +212,7 @@
         <button class="nav-link active" id="pills-interference-tab" data-bs-toggle="pill" data-bs-target="#pills-interference" type="button" role="tab" aria-controls="pills-interference" aria-selected="true">Interferência</button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link" id="pills-diffraction-tab" data-bs-toggle="pill" data-bs-target="#pills-diffraction" type="button" role="tab" aria-controls="pills-diffraction" aria-selected="false">Difração e Equalização</button>
+        <button class="nav-link" id="pills-diffraction-tab" data-bs-toggle="pill" data-bs-target="#pills-diffraction" type="button" role="tab" aria-controls="pills-diffraction" aria-selected="false">Difração e Equalizador</button>
       </li>
     </ul>
 
@@ -340,24 +340,46 @@
               <div class="alert alert-info" role="alert">
                 <i class="fas fa-info-circle me-2"></i>Use o microfone para simular o som. Os filtros abaixo mudam o som em tempo real.
               </div>
+
+              <h6 class="mt-4 mb-3"><i class="fas fa-equalizer me-2"></i> Equalizador</h6>
               <div class="mb-3">
-                <label for="lowPassFreq" class="form-label control-label">Filtro Passa-Baixa: <span id="lowPassFreqValue" class="value-display">20000</span> Hz</label>
-                <input type="range" class="form-range" id="lowPassFreq" min="100" max="20000" value="20000" step="10">
-                <small class="form-text text-muted">Aumenta ou diminui o efeito "abafado" do som.</small>
+                <label for="lowPassFreq" class="form-label control-label">Filtro Passa-Baixa (LPF): <span id="lowPassFreqValue" class="value-display">20000</span> Hz</label>
+                <input type="range" class="form-range" id="lowPassFreq" min="500" max="20000" value="20000" step="10">
+                <small class="form-text text-muted">Corta frequências acima do valor. Deixa o som mais "abafado".</small>
               </div>
               <div class="mb-3">
-                <label for="highPassFreq" class="form-label control-label">Filtro Passa-Alta: <span id="highPassFreqValue" class="value-display">0</span> Hz</label>
-                <input type="range" class="form-range" id="highPassFreq" min="0" max="1000" value="0" step="10">
-                <small class="form-text text-muted">Aumenta ou diminui a parte grave do som.</small>
+                <label for="highPassFreq" class="form-label control-label">Filtro Passa-Alta (HPF): <span id="highPassFreqValue" class="value-display">0</span> Hz</label>
+                <input type="range" class="form-range" id="highPassFreq" min="0" max="500" value="0" step="1">
+                <small class="form-text text-muted">Corta frequências abaixo do valor. Deixa o som mais "fino".</small>
               </div>
+
+              <div class="row mb-3">
+                <div class="col">
+                  <label for="lowGain" class="form-label control-label">Graves (LOW): <span id="lowGainValue" class="value-display">0</span> dB</label>
+                  <input type="range" class="form-range" id="lowGain" min="-20" max="20" value="0" step="0.5">
+                  <small class="form-text text-muted">Frequência: ~150Hz</small>
+                </div>
+                <div class="col">
+                  <label for="midGain" class="form-label control-label">Médios (MID): <span id="midGainValue" class="value-display">0</span> dB</label>
+                  <input type="range" class="form-range" id="midGain" min="-20" max="20" value="0" step="0.5">
+                  <small class="form-text text-muted">Frequência: ~1500Hz</small>
+                </div>
+                <div class="col">
+                  <label for="highGain" class="form-label control-label">Agudos (HIGH): <span id="highGainValue" class="value-display">0</span> dB</label>
+                  <input type="range" class="form-range" id="highGain" min="-20" max="20" value="0" step="0.5">
+                  <small class="form-text text-muted">Frequência: ~7000Hz</small>
+                </div>
+              </div>
+              
+              <h6 class="mt-4 mb-3"><i class="fas fa-splotch me-2"></i>Simulação Visual</h6>
               <div class="mb-3">
                 <label for="slitWidth" class="form-label control-label">Largura da Fenda: <span id="slitWidthValue" class="value-display">20</span> cm</label>
                 <input type="range" class="form-range" id="slitWidth" min="10" max="60" value="20" step="1">
               </div>
-              <div class="mb-3">
-                <label for="listenerPosition" class="form-label control-label">Simulação de Parede: <span id="listenerPositionValue" class="value-display">Desativado</span></label>
-                <input type="range" class="form-range" id="listenerPosition" min="0" max="1" value="0" step="1">
-                <small class="form-text text-muted">Liga o filtro passa-baixa para simular o som abafado de uma parede.</small>
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" role="switch" id="wallSimulationSwitch">
+                <label class="form-check-label control-label" for="wallSimulationSwitch">Simular Parede</label>
+                <small class="form-text text-muted d-block">Ativa um filtro passa-baixa para demonstrar o efeito de som abafado por uma parede.</small>
               </div>
             </div>
           </div>
@@ -760,19 +782,27 @@
     }
 
     // ----------------------------------------------
-    // Lógica para a simulação de Difração e EQ
+    // Lógica para a simulação de Difração e Equalização
     // ----------------------------------------------
     const diffractionCanvas = document.getElementById('diffractionCanvas');
     const diffractionCtx = diffractionCanvas.getContext('2d');
     const toggleDiffractionBtn = document.getElementById('toggleDiffractionBtn');
+    
     const lowPassFreqSlider = document.getElementById('lowPassFreq');
     const lowPassFreqValue = document.getElementById('lowPassFreqValue');
     const highPassFreqSlider = document.getElementById('highPassFreq');
     const highPassFreqValue = document.getElementById('highPassFreqValue');
+
+    const lowGainSlider = document.getElementById('lowGain');
+    const lowGainValue = document.getElementById('lowGainValue');
+    const midGainSlider = document.getElementById('midGain');
+    const midGainValue = document.getElementById('midGainValue');
+    const highGainSlider = document.getElementById('highGain');
+    const highGainValue = document.getElementById('highGainValue');
+    
     const slitWidthSlider = document.getElementById('slitWidth');
     const slitWidthValue = document.getElementById('slitWidthValue');
-    const listenerPositionSlider = document.getElementById('listenerPosition');
-    const listenerPositionValue = document.getElementById('listenerPositionValue');
+    const wallSimulationSwitch = document.getElementById('wallSimulationSwitch');
 
     let diffractionSoundOn = false;
     let audioDiffractionCtx = null;
@@ -780,6 +810,10 @@
     let microphoneSource = null;
     let lowPassFilter = null;
     let highPassFilter = null;
+    let lowGainFilter = null;
+    let midGainFilter = null;
+    let highGainFilter = null;
+
     let diffractionAnimationFrame;
 
     function setupDiffractionCanvas() {
@@ -794,31 +828,47 @@
 
     function setupDiffractionListeners() {
         toggleDiffractionBtn.addEventListener('click', toggleDiffractionSound);
-        lowPassFreqSlider.addEventListener('input', updateDiffractionParams);
-        highPassFreqSlider.addEventListener('input', updateDiffractionParams);
-        slitWidthSlider.addEventListener('input', updateDiffractionParams);
-        listenerPositionSlider.addEventListener('input', updateDiffractionParams);
+        
+        const allControls = [
+          lowPassFreqSlider, highPassFreqSlider, slitWidthSlider,
+          lowGainSlider, midGainSlider, highGainSlider
+        ];
+        
+        allControls.forEach(control => {
+            control.addEventListener('input', updateDiffractionParams);
+        });
+        
+        wallSimulationSwitch.addEventListener('change', updateDiffractionParams);
+        
         window.addEventListener('resize', setupDiffractionCanvas);
         setupDiffractionCanvas();
     }
     
     function updateDiffractionParams() {
+        // Atualiza os valores dos displays
         lowPassFreqValue.textContent = lowPassFreqSlider.value;
         highPassFreqValue.textContent = highPassFreqSlider.value;
         slitWidthValue.textContent = slitWidthSlider.value;
-        
-        const listenerPos = parseInt(listenerPositionSlider.value);
-        if(listenerPos === 1) {
-          listenerPositionValue.textContent = 'Ativado';
-          lowPassFreqSlider.value = 500;
+        lowGainValue.textContent = lowGainSlider.value;
+        midGainValue.textContent = midGainSlider.value;
+        highGainValue.textContent = highGainSlider.value;
+
+        // Lógica de simulação de parede
+        if (wallSimulationSwitch.checked) {
+            lowPassFreqSlider.value = 500;
+            lowPassFreqSlider.disabled = true;
+            lowPassFreqValue.textContent = 500;
         } else {
-          listenerPositionValue.textContent = 'Desativado';
-          lowPassFreqSlider.value = 20000;
+            lowPassFreqSlider.disabled = false;
+            // O valor do slider volta ao que o usuário definiu antes, se possível
+            // Aqui, simplesmente resetamos para o valor inicial se não houver um valor salvo.
+            // Para maior precisão, poderíamos salvar o último valor.
         }
 
-        if(lowPassFilter) {
+        if(audioDiffractionCtx) {
             updateDiffractionAudio();
         }
+        
         cancelAnimationFrame(diffractionAnimationFrame);
         drawDiffraction();
     }
@@ -853,33 +903,56 @@
 
       microphoneSource = audioDiffractionCtx.createMediaStreamSource(stream);
 
-      lowPassFilter = audioDiffractionCtx.createBiquadFilter();
-      lowPassFilter.type = 'lowpass';
-      lowPassFilter.Q.value = 1;
-        
+      // Filtros de corte (HPF e LPF)
       highPassFilter = audioDiffractionCtx.createBiquadFilter();
       highPassFilter.type = 'highpass';
       highPassFilter.Q.value = 1;
 
-      // Conectar a cadeia de áudio: Microfone -> Filtro Passa-Baixa -> Filtro Passa-Alta -> Saída
-      microphoneSource.connect(lowPassFilter);
-      lowPassFilter.connect(highPassFilter);
-      highPassFilter.connect(audioDiffractionCtx.destination);
+      lowPassFilter = audioDiffractionCtx.createBiquadFilter();
+      lowPassFilter.type = 'lowpass';
+      lowPassFilter.Q.value = 1;
+
+      // Filtros de pico para o EQ
+      lowGainFilter = audioDiffractionCtx.createBiquadFilter();
+      lowGainFilter.type = 'peaking';
+      lowGainFilter.frequency.value = 150; // Frequência dos graves
+      lowGainFilter.Q.value = 1;
+
+      midGainFilter = audioDiffractionCtx.createBiquadFilter();
+      midGainFilter.type = 'peaking';
+      midGainFilter.frequency.value = 1500; // Frequência dos médios
+      midGainFilter.Q.value = 1;
       
-      updateDiffractionAudio();
+      highGainFilter = audioDiffractionCtx.createBiquadFilter();
+      highGainFilter.type = 'peaking';
+      highGainFilter.frequency.value = 7000; // Frequência dos agudos
+      highGainFilter.Q.value = 1;
+
+
+      // Conectar a cadeia de áudio:
+      // Microfone -> HPF -> LPF -> LowGain -> MidGain -> HighGain -> Saída
+      microphoneSource.connect(highPassFilter);
+      highPassFilter.connect(lowPassFilter);
+      lowPassFilter.connect(lowGainFilter);
+      lowGainFilter.connect(midGainFilter);
+      midGainFilter.connect(highGainFilter);
+      highGainFilter.connect(audioDiffractionCtx.destination);
+      
+      updateDiffractionParams();
     }
 
     function updateDiffractionAudio() {
-        if(!lowPassFilter || !highPassFilter) return;
+        if(!audioDiffractionCtx) return;
         
-        const lowPassFreq = parseFloat(lowPassFreqSlider.value);
-        const highPassFreq = parseFloat(highPassFreqSlider.value);
+        // Atualiza os filtros de corte
+        highPassFilter.frequency.setValueAtTime(parseFloat(highPassFreqSlider.value), audioDiffractionCtx.currentTime);
+        lowPassFilter.frequency.setValueAtTime(parseFloat(lowPassFreqSlider.value), audioDiffractionCtx.currentTime);
         
-        lowPassFilter.frequency.setValueAtTime(lowPassFreq, audioDiffractionCtx.currentTime);
-        highPassFilter.frequency.setValueAtTime(highPassFreq, audioDiffractionCtx.currentTime);
-
-        lowPassFreqValue.textContent = lowPassFreq;
-        highPassFreqValue.textContent = highPassFreq;
+        // Atualiza os filtros do EQ
+        lowGainFilter.gain.setValueAtTime(parseFloat(lowGainSlider.value), audioDiffractionCtx.currentTime);
+        midGainFilter.gain.setValueAtTime(parseFloat(midGainSlider.value), audioDiffracti
+onCtx.currentTime);
+        highGainFilter.gain.setValueAtTime(parseFloat(highGainSlider.value), audioDiffractionCtx.currentTime);
     }
 
     function stopDiffractionSound() {
@@ -891,6 +964,9 @@
           microphoneSource = null;
           lowPassFilter = null;
           highPassFilter = null;
+          lowGainFilter = null;
+          midGainFilter = null;
+          highGainFilter = null;
       });
     }
 
@@ -904,6 +980,7 @@
         const wallX = width * 0.45;
         const slitWidth = parseInt(slitWidthSlider.value);
         
+        // A frequência visual é baseada no LPF, que é o que simula a barreira física
         const freqForWave = parseFloat(lowPassFreqSlider.value);
         const wavelength = 343 / freqForWave * 1000 * 0.1;
         const wallThickness = 20;
@@ -930,8 +1007,8 @@
         diffractionCtx.strokeStyle = `var(--primary)`;
         diffractionCtx.lineWidth = 2;
 
-        if (diffractionSoundOn) {
-            let offset = (time / 10) % (wavelength > 0 ? wavelength : 1);
+        if (diffractionSoundOn && wavelength > 0) {
+            let offset = (time / 10) % wavelength;
             for (let r = offset; r < width - sourceX; r += wavelength) {
                 if (r > 0) {
                     diffractionCtx.beginPath();
